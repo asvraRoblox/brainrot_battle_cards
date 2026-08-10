@@ -1,0 +1,269 @@
+-- Individual Auto Purchase with Timer (English) + Minimize + Large UI + Fixed Scrolling
+
+local player = game.Players.LocalPlayer
+
+-- Item list
+local items = {
+    -- Black Market
+    {remote = "PurchaseBlackMarketItemFunction", name = "Black Market Coins", args = {"Black Market Coins"}},
+    {remote = "PurchaseBlackMarketItemFunction", name = "Black Market Crate", args = {"Black Market Crate"}},
+    {remote = "PurchaseBlackMarketItemFunction", name = "Skibidi Storm Potion", args = {"Skibidi Storm Potion"}},
+    {remote = "PurchaseBlackMarketItemFunction", name = "1000-Roll Pack", args = {"1000-Roll Pack"}},
+    {remote = "PurchaseBlackMarketItemFunction", name = "Huge Speed Potion", args = {"Huge Speed Potion"}},
+    {remote = "PurchaseBlackMarketItemFunction", name = "Huge Rarity Potion", args = {"Huge Rarity Potion"}},
+    {remote = "PurchaseBlackMarketItemFunction", name = "Mega Boss Potion", args = {"Mega Boss Potion"}},
+    {remote = "PurchaseBlackMarketItemFunction", name = "Loaded Dice", args = {"Loaded Dice"}},
+    {remote = "PurchaseBlackMarketItemFunction", name = "Variant Serum", args = {"Variant Serum"}},
+    -- Genie Shop
+    {remote = "GenieShopPurchaseFunction", name = "Cleansing Potion", args = {"Cleansing Potion"}},
+    {remote = "GenieShopPurchaseFunction", name = "One More Day", args = {"One More Day"}},
+    {remote = "GenieShopPurchaseFunction", name = "Golden Acorn", args = {"Golden Acorn"}},
+    {remote = "GenieShopPurchaseFunction", name = "Storm in a Bottle", args = {"Storm in a Bottle"}},
+    {remote = "GenieShopPurchaseFunction", name = "Mystery Seed", args = {"Mystery Seed"}},
+    {remote = "GenieShopPurchaseFunction", name = "The Wish Tree", args = {"The Wish Tree"}},
+}
+
+-- Get Remotes
+local remotes = {}
+for i, item in ipairs(items) do
+    local r = game.ReplicatedStorage:FindFirstChild(item.remote)
+    if not r then
+        print("❌ Remote not found: " .. item.remote)
+        return
+    end
+    remotes[i] = r
+end
+
+-- GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = player.PlayerGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 600, 0, 800)
+frame.Position = UDim2.new(0.5, -300, 0.5, -400)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BackgroundTransparency = 0.1
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
+
+-- Title
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 55)
+title.BackgroundTransparency = 1
+title.Text = "⏱️ Auto Purchase"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 30
+title.Font = Enum.Font.GothamBold
+title.Parent = frame
+
+-- Minimize Button
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0, 50, 0, 45)
+minimizeBtn.Position = UDim2.new(0.78, 0, 0.005, 0)
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(200, 200, 0)
+minimizeBtn.Text = "─"
+minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.TextSize = 26
+minimizeBtn.Parent = frame
+
+-- Close Button
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 50, 0, 45)
+closeBtn.Position = UDim2.new(0.88, 0, 0.005, 0)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 24
+closeBtn.Parent = frame
+closeBtn.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
+
+-- Minimize function
+local minimized = false
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, 0, 1, -60)
+content.Position = UDim2.new(0, 0, 0.08, 0)
+content.BackgroundTransparency = 1
+content.Parent = frame
+
+minimizeBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    content.Visible = not minimized
+    if minimized then
+        frame.Size = UDim2.new(0, 600, 0, 60)
+        minimizeBtn.Text = "□"
+        frame.Position = UDim2.new(0.5, -300, 0.5, -30)
+    else
+        frame.Size = UDim2.new(0, 600, 0, 800)
+        minimizeBtn.Text = "─"
+        frame.Position = UDim2.new(0.5, -300, 0.5, -400)
+    end
+end)
+
+-- Scroll frame (fixed: no bounce, proper sizing)
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(1, 0, 1, 0)
+scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+scroll.BackgroundTransparency = 0.3
+scroll.Parent = content
+
+-- Fix scrolling: set canvas size manually
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+scroll.ScrollBarThickness = 8
+scroll.BottomImage = "rbxasset://textures/ui/Scroll/scroll-bottom.png"
+scroll.MidImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
+scroll.TopImage = "rbxasset://textures/ui/Scroll/scroll-top.png"
+
+-- Use a UIListLayout to handle item positioning
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 8)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = scroll
+
+-- Update canvas size when layout changes
+local function updateCanvas()
+    local totalHeight = 0
+    for _, child in ipairs(scroll:GetChildren()) do
+        if child:IsA("Frame") and child ~= layout then
+            totalHeight = totalHeight + child.Size.Y.Offset + 8
+        end
+    end
+    scroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 120)
+end
+
+-- State
+local itemStates = {}
+
+-- Purchase function
+local function purchaseItem(index)
+    local item = items[index]
+    local remote = remotes[index]
+    local success, result = pcall(function()
+        return remote:InvokeServer(unpack(item.args))
+    end)
+    if success then
+        itemStates[index].count = itemStates[index].count + 1
+        itemStates[index].countLabel.Text = "Purchased: " .. itemStates[index].count .. "x"
+        print("✅ " .. item.name .. " purchased! (Total: " .. itemStates[index].count .. ")")
+        return true
+    else
+        print("❌ " .. item.name .. " failed: " .. tostring(result))
+        return false
+    end
+end
+
+-- Individual loop
+local function itemLoop(index)
+    while itemStates[index].enabled do
+        purchaseItem(index)
+        task.wait(itemStates[index].interval)
+    end
+    itemStates[index].toggleBtn.Text = "off"
+    itemStates[index].toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+end
+
+-- Create rows
+for i, item in ipairs(items) do
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, -10, 0, 90)
+    row.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    row.BackgroundTransparency = 0.2
+    row.Parent = scroll
+    
+    -- Item name
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0, 28)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = item.name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextSize = 18
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = row
+    
+    -- Interval input
+    local intervalLabel = Instance.new("TextLabel")
+    intervalLabel.Size = UDim2.new(0.2, 0, 0.3, 0)
+    intervalLabel.Position = UDim2.new(0, 0, 0.38, 0)
+    intervalLabel.BackgroundTransparency = 1
+    intervalLabel.Text = "Interval (sec):"
+    intervalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    intervalLabel.TextSize = 14
+    intervalLabel.Font = Enum.Font.Gotham
+    intervalLabel.TextXAlignment = Enum.TextXAlignment.Left
+    intervalLabel.Parent = row
+    
+    local intervalBox = Instance.new("TextBox")
+    intervalBox.Size = UDim2.new(0.15, 0, 0.3, 0)
+    intervalBox.Position = UDim2.new(0.2, 0, 0.38, 0)
+    intervalBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    intervalBox.Text = "2"
+    intervalBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    intervalBox.Font = Enum.Font.Gotham
+    intervalBox.TextSize = 16
+    intervalBox.PlaceholderText = "sec"
+    intervalBox.Parent = row
+    
+    -- ON/OFF button
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(0.18, 0, 0.35, 0)
+    toggleBtn.Position = UDim2.new(0.75, 0, 0.35, 0)
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    toggleBtn.Text = "off"
+    toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleBtn.Font = Enum.Font.GothamBold
+    toggleBtn.TextSize = 18
+    toggleBtn.Parent = row
+    
+    -- Count display
+    local countLabel = Instance.new("TextLabel")
+    countLabel.Size = UDim2.new(1, 0, 0.25, 0)
+    countLabel.Position = UDim2.new(0, 0, 0.72, 0)
+    countLabel.BackgroundTransparency = 1
+    countLabel.Text = "Purchased: 0x"
+    countLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    countLabel.TextSize = 15
+    countLabel.Font = Enum.Font.Gotham
+    countLabel.TextXAlignment = Enum.TextXAlignment.Left
+    countLabel.Parent = row
+    
+    -- State
+    itemStates[i] = {
+        enabled = false,
+        count = 0,
+        interval = 2,
+        toggleBtn = toggleBtn,
+        countLabel = countLabel,
+    }
+    
+    -- Toggle
+    toggleBtn.MouseButton1Click:Connect(function()
+        itemStates[i].enabled = not itemStates[i].enabled
+        toggleBtn.Text = itemStates[i].enabled and "ON" or "off"
+        toggleBtn.BackgroundColor3 = itemStates[i].enabled and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 50, 50)
+        
+        if itemStates[i].enabled then
+            itemStates[i].count = 0
+            itemStates[i].interval = tonumber(intervalBox.Text) or 2
+            countLabel.Text = "Purchased: 0x"
+            print("▶️ " .. item.name .. " started! Interval: " .. itemStates[i].interval .. "s")
+            coroutine.wrap(itemLoop)(i)
+        else
+            print("⏹️ " .. item.name .. " stopped")
+        end
+    end)
+end
+
+-- Update canvas after layout is done
+task.wait(0.1)
+updateCanvas()
+
+-- Also update when items are added (just in case)
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
+
+print("✅ Auto Purchase GUI loaded!")
+print("📊 Items: " .. #items .. " types")
